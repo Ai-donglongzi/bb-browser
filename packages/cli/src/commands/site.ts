@@ -406,13 +406,13 @@ async function siteRun(
   if (typeof parsed === "object" && parsed !== null && "error" in parsed) {
     const errObj = parsed as { error: string; hint?: string };
 
-    // 检测是否为登录问题
-    const errLower = errObj.error.toLowerCase();
-    const isAuthError = /401|403|unauthorized|forbidden|not.?logged|login.?required|sign.?in|auth/i.test(errLower);
+    // 检测是否为登录问题（检查 error 和 hint 文本）
+    const checkText = `${errObj.error} ${errObj.hint || ""}`;
+    const isAuthError = /401|403|unauthorized|forbidden|not.?logged|login.?required|sign.?in|auth/i.test(checkText);
     const loginHint = isAuthError && site.domain
       ? `Please log in to https://${site.domain} in your browser first, then retry.`
       : undefined;
-    const hint = errObj.hint || loginHint;
+    const hint = loginHint || errObj.hint;
 
     if (options.json) {
       console.log(JSON.stringify({ id: evalReq.id, success: false, error: errObj.error, hint }));
