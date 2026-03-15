@@ -151,9 +151,16 @@ async function main(): Promise<void> {
   writePidFile();
 
   console.error(`[Daemon] HTTP server listening on http://${options.host}:${options.port}`);
-  console.error(`[Daemon] Auth ${token ? "enabled" : "disabled"}${token && !requiresToken ? " (loopback default token generated)" : ""}`);
   if (token) {
+    const tokenMode = options.token?.trim()
+      ? "using configured token"
+      : requiresToken
+        ? "using required token"
+        : "using auto-generated loopback token";
+    console.error(`[Daemon] Auth enabled (${tokenMode})`);
     console.error(`[Daemon] Token env: ${DAEMON_TOKEN_ENV}`);
+  } else {
+    console.error("[Daemon] Auth disabled");
   }
   console.error("[Daemon] Waiting for extension connection...");
 }
