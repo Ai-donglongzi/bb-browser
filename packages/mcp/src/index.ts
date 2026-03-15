@@ -1,6 +1,6 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { DAEMON_BASE_URL, COMMAND_TIMEOUT, generateId } from "@bb-browser/shared";
+import { DAEMON_BASE_URL, COMMAND_TIMEOUT, DAEMON_TOKEN_ENV, DAEMON_TOKEN_HEADER, generateId } from "@bb-browser/shared";
 import type { Request, Response } from "@bb-browser/shared";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -17,6 +17,11 @@ const EXT_HINT = [
   "4. Click \"Load unpacked\" → select the unzipped folder",
 ].join("\n");
 
+function getAuthHeaders(): Record<string, string> {
+  const token = process.env[DAEMON_TOKEN_ENV]?.trim();
+  return token ? { [DAEMON_TOKEN_HEADER]: token } : {};
+}
+
 function getDaemonPath(): string {
   const currentDir = dirname(fileURLToPath(import.meta.url));
   const sameDirPath = resolve(currentDir, "daemon.js");
@@ -28,7 +33,7 @@ async function isDaemonRunning(): Promise<boolean> {
   try {
     const controller = new AbortController();
     const t = setTimeout(() => controller.abort(), 2000);
-    const res = await fetch(`${DAEMON_BASE_URL}/status`, { signal: controller.signal });
+    const res = await fetch(`${DAEMON_BASE_URL}/status`, { signal: controller.signal, headers: getAuthHeaders() });
     clearTimeout(t);
     return res.ok;
   } catch { return false; }
@@ -36,6 +41,9 @@ async function isDaemonRunning(): Promise<boolean> {
 
 async function ensureDaemon(): Promise<void> {
   if (await isDaemonRunning()) return;
+  if (!process.env[DAEMON_TOKEN_ENV]?.trim()) {
+    process.env[DAEMON_TOKEN_ENV] = generateId().replace(/-/g, "");
+  }
   const child = spawn(process.execPath, [getDaemonPath()], {
     detached: true, stdio: "ignore", env: { ...process.env },
   });
@@ -54,7 +62,7 @@ async function sendCommand(request: Request): Promise<Response> {
   try {
     const response = await fetch(`${DAEMON_BASE_URL}/command`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify(request),
       signal: controller.signal,
     });

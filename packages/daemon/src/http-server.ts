@@ -10,13 +10,14 @@
 
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from "node:http";
 import type { Request, Response } from "@bb-browser/shared";
-import { DAEMON_PORT } from "@bb-browser/shared";
+import { DAEMON_PORT, DAEMON_TOKEN_HEADER } from "@bb-browser/shared";
 import { SSEManager } from "./sse-manager.js";
 import { RequestManager } from "./request-manager.js";
 
 export interface HttpServerOptions {
   host?: string;
   port?: number;
+  token?: string;
   onShutdown?: () => void;
 }
 
@@ -29,6 +30,7 @@ export class HttpServer {
   private port: number;
   private startTime: number = 0;
   private onShutdown?: () => void;
+  private token?: string;
 
   readonly sseManager = new SSEManager();
   readonly requestManager = new RequestManager();
@@ -36,6 +38,7 @@ export class HttpServer {
   constructor(options: HttpServerOptions = {}) {
     this.host = options.host ?? "127.0.0.1";
     this.port = options.port ?? DAEMON_PORT;
+    this.token = options.token?.trim() || undefined;
     this.onShutdown = options.onShutdown;
   }
 
@@ -93,14 +96,20 @@ export class HttpServer {
    * 路由请求
    */
   private handleRequest(req: IncomingMessage, res: ServerResponse): void {
-    // CORS 支持
-    res.setHeader("Access-Control-Allow-Origin", "*");
+    const allowOrigin = this.host === "127.0.0.1" || this.host === "localhost" ? "http://localhost" : "null";
+    res.setHeader("Access-Control-Allow-Origin", allowOrigin);
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Headers", `Content-Type, ${DAEMON_TOKEN_HEADER}`);
+    res.setHeader("Vary", "Origin");
 
     if (req.method === "OPTIONS") {
       res.writeHead(204);
       res.end();
+      return;
+    }
+
+    if (!this.isAuthorized(req)) {
+      this.sendJson(res, 401, { success: false, error: "Unauthorized" });
       return;
     }
 
@@ -119,6 +128,16 @@ export class HttpServer {
     } else {
       this.sendJson(res, 404, { error: "Not found" });
     }
+  }
+
+  private isAuthorized(req: IncomingMessage): boolean {
+    if (!this.token) {
+      return true;
+    }
+
+    const header = req.headers[DAEMON_TOKEN_HEADER.toLowerCase()];
+    const candidate = Array.isArray(header) ? header[0] : header;
+    return typeof candidate === "string" && candidate.trim() === this.token;
   }
 
   /**
