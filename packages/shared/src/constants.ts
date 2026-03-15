@@ -11,12 +11,6 @@ export const DAEMON_HOST = "localhost";
 /** Daemon 基础 URL */
 export const DAEMON_BASE_URL = `http://${DAEMON_HOST}:${DAEMON_PORT}`;
 
-/** Daemon 认证请求头 */
-export const DAEMON_TOKEN_HEADER = "X-BB-Token";
-
-/** 环境变量：Daemon 认证 Token */
-export const DAEMON_TOKEN_ENV = "BB_BROWSER_TOKEN";
-
 /** SSE 心跳间隔（毫秒） - 15秒确保 MV3 Service Worker 不休眠 */
 export const SSE_HEARTBEAT_INTERVAL = 15000; // 15 秒
 

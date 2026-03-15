@@ -3,7 +3,7 @@
  * 负责向 Daemon 回传命令执行结果
  */
 
-import { getUpstreamConfig, DAEMON_TOKEN_HEADER } from './constants';
+import { getUpstreamUrl } from './constants';
 
 export interface CommandResult {
   id: string;
@@ -16,7 +16,7 @@ export interface CommandResult {
  * 向 Daemon 发送命令执行结果
  */
 export async function sendResult(result: CommandResult): Promise<void> {
-  const { baseUrl, token } = await getUpstreamConfig();
+  const baseUrl = await getUpstreamUrl();
   const url = `${baseUrl}/result`;
   console.log('[APIClient] Sending result:', result.id, result.success);
 
@@ -25,7 +25,6 @@ export async function sendResult(result: CommandResult): Promise<void> {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { [DAEMON_TOKEN_HEADER]: token } : {}),
       },
       body: JSON.stringify(result),
     });

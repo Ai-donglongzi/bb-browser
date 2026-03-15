@@ -12,8 +12,7 @@
 
 import { parseArgs } from "node:util";
 import { writeFileSync, unlinkSync, existsSync } from "node:fs";
-import { randomBytes } from "node:crypto";
-import { DAEMON_PORT, DAEMON_HOST, DAEMON_TOKEN_ENV } from "@bb-browser/shared";
+import { DAEMON_PORT, DAEMON_HOST } from "@bb-browser/shared";
 import { HttpServer } from "./http-server.js";
 
 const PID_FILE_PATH = "/tmp/bb-browser.pid";
@@ -21,7 +20,6 @@ const PID_FILE_PATH = "/tmp/bb-browser.pid";
 interface DaemonOptions {
   host: string;
   port: number;
-  token?: string;
 }
 
 /**
@@ -41,9 +39,6 @@ function parseOptions(): DaemonOptions {
         short: "p",
         default: String(DAEMON_PORT),
       },
-      token: {
-        type: "string",
-      },
       help: {
         type: "boolean",
         short: "h",
@@ -60,10 +55,9 @@ Usage:
   bb-browser-daemon [options]
 
 Options:
-  -H, --host <host>   HTTP server host (default: ${DAEMON_HOST})
-  -p, --port <port>   HTTP server port (default: ${DAEMON_PORT})
-      --token <tok>   Shared auth token (default: env ${DAEMON_TOKEN_ENV} or auto-generated for loopback)
-  -h, --help          Show this help message
+  -H, --host <host>  HTTP server host (default: ${DAEMON_HOST})
+  -p, --port <port>  HTTP server port (default: ${DAEMON_PORT})
+  -h, --help         Show this help message
 
 Endpoints:
   POST /command      Send command and wait for result (CLI)
@@ -77,16 +71,11 @@ Endpoints:
   return {
     host: values.host ?? DAEMON_HOST,
     port: parseInt(values.port ?? String(DAEMON_PORT), 10),
-    token: values.token ?? process.env[DAEMON_TOKEN_ENV],
   };
 }
 
 function isLoopbackHost(host: string): boolean {
   return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]";
-}
-
-function generateToken(): string {
-  return randomBytes(24).toString("hex");
 }
 
 /**
@@ -114,15 +103,9 @@ function cleanupPidFile(): void {
  */
 async function main(): Promise<void> {
   const options = parseOptions();
-  const requiresToken = !isLoopbackHost(options.host);
-  const token = options.token?.trim() || (requiresToken ? "" : generateToken());
 
-  if (requiresToken && !token) {
-    throw new Error(`Refusing to listen on non-loopback host without auth token. Set --token or ${DAEMON_TOKEN_ENV}.`);
-  }
-
-  if (!process.env[DAEMON_TOKEN_ENV] && token) {
-    process.env[DAEMON_TOKEN_ENV] = token;
+  if (!isLoopbackHost(options.host)) {
+    throw new Error("Refusing to listen on non-loopback host. This build is restricted to local loopback use only.");
   }
 
   // 优雅关闭
@@ -137,7 +120,6 @@ async function main(): Promise<void> {
   const httpServer = new HttpServer({
     host: options.host,
     port: options.port,
-    token,
     onShutdown: shutdown,
   });
 
@@ -151,17 +133,7 @@ async function main(): Promise<void> {
   writePidFile();
 
   console.error(`[Daemon] HTTP server listening on http://${options.host}:${options.port}`);
-  if (token) {
-    const tokenMode = options.token?.trim()
-      ? "using configured token"
-      : requiresToken
-        ? "using required token"
-        : "using auto-generated loopback token";
-    console.error(`[Daemon] Auth enabled (${tokenMode})`);
-    console.error(`[Daemon] Token env: ${DAEMON_TOKEN_ENV}`);
-  } else {
-    console.error("[Daemon] Auth disabled");
-  }
+  console.error("[Daemon] Local loopback-only mode enabled");
   console.error("[Daemon] Waiting for extension connection...");
 }
 

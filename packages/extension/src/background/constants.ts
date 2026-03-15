@@ -5,7 +5,6 @@
 export const DEFAULT_DAEMON_PORT = 19824;
 export const DEFAULT_DAEMON_HOST = 'localhost';
 export const DEFAULT_DAEMON_BASE_URL = `http://${DEFAULT_DAEMON_HOST}:${DEFAULT_DAEMON_PORT}`;
-export const DAEMON_TOKEN_HEADER = 'X-BB-Token';
 
 // 保持向后兼容的导出
 export const DAEMON_PORT = DEFAULT_DAEMON_PORT;
@@ -16,7 +15,6 @@ export const SSE_RECONNECT_DELAY = 3000; // 3 秒
 export const SSE_MAX_RECONNECT_ATTEMPTS = 5;
 
 const STORAGE_KEY_UPSTREAM_URL = 'upstreamUrl';
-const STORAGE_KEY_UPSTREAM_TOKEN = 'upstreamToken';
 const STORAGE_KEY_ALLOW_REMOTE_UPSTREAM = 'allowRemoteUpstream';
 
 function isLoopbackHost(hostname: string): boolean {
@@ -27,31 +25,21 @@ function normalizeBaseUrl(url: unknown): string {
   return typeof url === 'string' && url.trim() ? url.trim().replace(/\/+$/, '') : '';
 }
 
-export interface UpstreamConfig {
-  baseUrl: string;
-  token: string;
-  allowRemote: boolean;
-}
-
 /**
- * 获取上游配置（默认仅允许 loopback）
+ * 获取上游 URL（默认仅允许 loopback）
  */
-export async function getUpstreamConfig(): Promise<UpstreamConfig> {
+export async function getUpstreamUrl(): Promise<string> {
   try {
     const result = await chrome.storage.sync.get([
       STORAGE_KEY_UPSTREAM_URL,
-      STORAGE_KEY_UPSTREAM_TOKEN,
       STORAGE_KEY_ALLOW_REMOTE_UPSTREAM,
     ]);
 
     const allowRemote = result[STORAGE_KEY_ALLOW_REMOTE_UPSTREAM] === true;
     const rawUrl = normalizeBaseUrl(result[STORAGE_KEY_UPSTREAM_URL]);
-    const token = typeof result[STORAGE_KEY_UPSTREAM_TOKEN] === 'string'
-      ? result[STORAGE_KEY_UPSTREAM_TOKEN].trim()
-      : '';
 
     if (!rawUrl) {
-      return { baseUrl: DEFAULT_DAEMON_BASE_URL, token, allowRemote };
+      return DEFAULT_DAEMON_BASE_URL;
     }
 
     try {
@@ -61,9 +49,9 @@ export async function getUpstreamConfig(): Promise<UpstreamConfig> {
       }
       if (!allowRemote && !isLoopbackHost(parsed.hostname)) {
         console.warn('[Security] Blocking non-local upstream URL because remote upstream is disabled:', rawUrl);
-        return { baseUrl: DEFAULT_DAEMON_BASE_URL, token, allowRemote };
+        return DEFAULT_DAEMON_BASE_URL;
       }
-      return { baseUrl: rawUrl, token, allowRemote };
+      return rawUrl;
     } catch (error) {
       console.warn('[Security] Invalid upstream URL, falling back to default:', error);
     }
@@ -71,15 +59,7 @@ export async function getUpstreamConfig(): Promise<UpstreamConfig> {
     // storage 不可用时用默认值
   }
 
-  return { baseUrl: DEFAULT_DAEMON_BASE_URL, token: '', allowRemote: false };
-}
-
-/**
- * 获取上游 URL（向后兼容）
- */
-export async function getUpstreamUrl(): Promise<string> {
-  const config = await getUpstreamConfig();
-  return config.baseUrl;
+  return DEFAULT_DAEMON_BASE_URL;
 }
 
 /**

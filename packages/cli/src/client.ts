@@ -3,15 +3,10 @@
  */
 
 import type { Request, Response } from "@bb-browser/shared";
-import { DAEMON_BASE_URL, COMMAND_TIMEOUT, DAEMON_TOKEN_ENV, DAEMON_TOKEN_HEADER } from "@bb-browser/shared";
+import { DAEMON_BASE_URL, COMMAND_TIMEOUT } from "@bb-browser/shared";
 import { applyJq } from "./jq.js";
 
 let jqExpression: string | undefined;
-
-function getAuthHeaders(): Record<string, string> {
-  const token = process.env[DAEMON_TOKEN_ENV]?.trim();
-  return token ? { [DAEMON_TOKEN_HEADER]: token } : {};
-}
 
 export function setJqExpression(expression?: string): void {
   jqExpression = expression;
@@ -44,7 +39,6 @@ export async function sendCommand(request: Request): Promise<Response> {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...getAuthHeaders(),
       },
       body: JSON.stringify(request),
       signal: controller.signal,

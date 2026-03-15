@@ -3,11 +3,10 @@
  */
 
 import { spawn } from "node:child_process";
-import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import { DAEMON_BASE_URL, DAEMON_TOKEN_ENV, DAEMON_TOKEN_HEADER } from "@bb-browser/shared";
+import { DAEMON_BASE_URL } from "@bb-browser/shared";
 
 /** 获取 daemon dist 路径 */
 export function getDaemonPath(): string {
@@ -27,11 +26,6 @@ export function getDaemonPath(): string {
 /** Daemon 启动超时时间（毫秒） */
 const DAEMON_START_TIMEOUT = 5000;
 
-function getAuthHeaders(): Record<string, string> {
-  const token = process.env[DAEMON_TOKEN_ENV]?.trim();
-  return token ? { [DAEMON_TOKEN_HEADER]: token } : {};
-}
-
 /** 轮询间隔（毫秒） */
 const POLL_INTERVAL = 200;
 
@@ -45,7 +39,6 @@ export async function isDaemonRunning(): Promise<boolean> {
 
     const response = await fetch(`${DAEMON_BASE_URL}/status`, {
       signal: controller.signal,
-      headers: getAuthHeaders(),
     });
 
     clearTimeout(timeoutId);
@@ -65,7 +58,6 @@ async function isExtensionConnected(): Promise<boolean> {
 
     const response = await fetch(`${DAEMON_BASE_URL}/status`, {
       signal: controller.signal,
-      headers: getAuthHeaders(),
     });
 
     clearTimeout(timeoutId);
@@ -98,10 +90,6 @@ async function waitForDaemon(timeoutMs: number): Promise<boolean> {
  */
 function spawnDaemon(): void {
   const daemonPath = getDaemonPath();
-
-  if (!process.env[DAEMON_TOKEN_ENV]?.trim()) {
-    process.env[DAEMON_TOKEN_ENV] = randomUUID().replace(/-/g, "");
-  }
   
   const daemonProcess = spawn(process.execPath, [daemonPath], {
     detached: true,
@@ -153,7 +141,6 @@ export async function stopDaemon(): Promise<boolean> {
     const response = await fetch(`${DAEMON_BASE_URL}/shutdown`, {
       method: "POST",
       signal: controller.signal,
-      headers: getAuthHeaders(),
     });
 
     clearTimeout(timeoutId);
